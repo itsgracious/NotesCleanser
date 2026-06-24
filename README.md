@@ -1,32 +1,49 @@
-# NotesCleanser
+# Notes Cleanser
 
-NotesCleanser is a privacy-first, 100% on-device Flutter mobile application designed to scan your phone's photo gallery, identify handwritten notes, printed documents, whiteboards, and text screenshots using a TensorFlow Lite model, and allow you to review and permanently delete them to free up device storage.
+Notes Cleanser is a premium, privacy-first, 100% on-device Flutter mobile application designed to scan your phone's photo gallery and PDF documents, identify handwritten notes, printed documents, whiteboards, and text screenshots using a TensorFlow Lite model, and allow you to review and permanently delete them to free up device storage.
 
 ## Features
 
-- **100% On-Device Processing**: No image, thumbnail, pixel, or metadata is ever sent over the network. Runs completely local.
-- **Fast Gallery Scanning**: Reads and processes assets in pages of 50 to avoid choking memory on large galleries.
-- **Dynamic Label Resolution**: Parses `labels.txt` at runtime to match categories dynamically instead of using hardcoded assumptions.
-- **Robust Image Classification**: Preprocesses native OS thumbnail bytes (224x224, float32, normalized to `[-1, 1]`) through a local TensorFlow Lite interpreter.
-- **Comprehensive Review System**: Presents classified note-photos in a beautiful, responsive 3-column grid featuring confidence badges and checkboxes (selected by default).
-- **Interactive Inspection**: Tap any photo to open a high-res inspection view containing file metadata (resolution, date taken) and toggle status.
-- **Safe Deletion**: Deletes marked assets using the native OS media editor API (requiring explicit system permission confirmation).
+- **100% On-Device Processing**: No image, PDF, thumbnail, pixel, or metadata is ever sent over the network. Runs completely local.
+- **Selective Folder & Album Scanning**: Pick specific folders or albums (WhatsApp, Screenshots, Downloads, Camera, etc.) from an elegant custom bottom sheet to run targeted scans.
+- **Hybrid PDF Document Scanning**: Automatically scans key PDF directories (Downloads, Documents, CamScanner, WhatsApp, etc.). Features:
+  - **Fallback Rasterization**: Rasterizes first page of PDFs to feed into TFLite image classifier.
+  - **Course Code Regex Pattern Matching**: Matches course codes (e.g. `CS101`, `MAT_302`) in filenames for instant matches.
+- **Safety Exclusions & Government Document Bypass**:
+  - **Page-Count Filter**: Automatically ignores and bypasses all PDFs containing 2 pages or fewer (safeguarding short government IDs, receipts, and PAN cards).
+  - **Token-Based Blacklist**: Advanced filename token checking bypasses official documents matching keywords (e.g. `aadhaar`, `nia`, `marksheet`, `license`, `certificate`).
+- **Interactive Scan Pause & Resume**: Replace generic cancel with a full pause option. Pause freezes scanning background loops. Presents options to **Resume**, **Review** (partially scanned notes), or **Cancel** (discard all). Intercepts the Android hardware back button to trigger the pause overlay.
+- **Advanced Sorting & Filtering**:
+  - **Sorting**: Order scanned files by Model Confidence, Date (Newer/Older), and Size (Greater/Lower) with background caching.
+  - **Date Filters**: Filter files by All Time, Today, Last 7 Days, Last 30 Days, or Custom Date Range.
+  - **Smooth Date Picker**: Uses an accessible bottom-sheet date selector with Start Date and End Date cards linked to focused, native calendar views.
+- **Tactile Touch Physics (`BouncyTap`)**: Applied a custom scale-animation widget to all buttons, lists, and checkboxes for tactile haptic feedback.
+- **Glassmorphic Redesign & Animated Progress**:
+  - **Sweeping Progress Ring**: Displays an active rotating 60 FPS sweep gradient indicator mimicking scanning radar.
+  - **Translucent Navigation Panels**: Features blurred glassmorphic header and action bars on the Results screen.
+- **Storage Reclamation Analytics**: Real-time calculation of byte sizes (`originFile.length()`) to display total reclaimable memory (KB, MB, GB) before deleting.
+- **On-Device Notifications**: Sends updates via Android Foreground Services to show active scan progress in the system tray.
 
 ## Project Structure
 
 ```text
 lib/
-├── main.dart             # App entry, warm-neutral Theme, and state injection
+├── main.dart                 # App entry, warm-neutral Theme, and state injection
 ├── models/
-│   └── note_photo.dart   # NotePhoto wrapper (AssetEntity, confidence, selection status)
+│   └── note_photo.dart       # NotePhoto wrapper (AssetEntity/File, confidence, sizeBytes, cached dateTime)
 ├── services/
-│   ├── note_classifier.dart # Loads TFLite model, preprocesses image, runs inference
-│   └── scan_provider.dart   # Gallery scanner state machine, pagination, and deletion
+│   ├── note_classifier.dart  # Loads TFLite model, preprocesses image, runs inference
+│   ├── pdf_scanner_service.dart # Handles local PDF file scans, blacklists, and regex rules
+│   ├── scan_provider.dart    # Scanning state machine, pagination, pause/resume, and deletion
+│   └── notification_service.dart # Handles Android Foreground Service progress updates
+├── widgets/
+│   └── bouncy_tap.dart       # Reusable tactile touch physics widget
 └── screens/
-    ├── home_screen.dart     # Homepage description, privacy cards, runtime permission checker
-    ├── scanning_screen.dart # Realtime scanning progress tracker and canceller
-    ├── results_screen.dart  # Responsive review grid with selection controls and deletion dialog
-    └── detail_screen.dart   # Fullscreen inspector, metadata viewer, and inclusion switch
+    ├── home_screen.dart      # Homepage description, privacy cards, album bottom sheet
+    ├── scanning_screen.dart  # Realtime radar progress tracker, pause/resume overlay
+    ├── results_screen.dart   # Glassmorphic review grid, custom sorting, date picker sheet
+    ├── detail_screen.dart    # Fullscreen image/PDF inspector, metadata, and selection toggle
+    └── splash_screen.dart    # Seamless WebP logo blend, TFLite preloading
 ```
 
 ## Setup & Model Installation
@@ -43,33 +60,7 @@ The `assets/labels.txt` should contain the labels line-by-line, e.g.:
 ```
 *(The `NoteClassifier` parses this file dynamically at startup to identify which index maps to "notes").*
 
-The files are registered in `pubspec.yaml` as assets:
-```yaml
-flutter:
-  assets:
-    - assets/model_unquant.tflite
-    - assets/labels.txt
-```
-
-### Android Gradle Configuration
-
-To support binary TensorFlow Lite operations and prevent compression of model assets (which causes loading errors):
-
-1. **Gradle AAPT Options**: In `android/app/build.gradle.kts`, `aaptOptions` are configured to prevent compression of `.tflite` and `.lite` files:
-   ```kotlin
-   aaptOptions {
-       noCompress("tflite")
-       noCompress("lite")
-   }
-   ```
-2. **Minimum SDK Version**: The `minSdk` is configured to `21` to satisfy the requirements of `tflite_flutter` and `photo_manager`.
-
 ## Running the Application
-
-Ensure you have a Flutter environment set up (stable channel). You can run a health check on the environment using:
-```bash
-flutter doctor
-```
 
 ### 1. Retrieve Packages
 Fetch the required dependencies from pub.dev:
@@ -80,6 +71,6 @@ flutter pub get
 ### 2. Run the App
 Connect a physical device or open a mobile emulator, and execute:
 ```bash
-flutter run
+flutter run --release
 ```
-*Note: Due to hardware-accelerated image analysis and local TensorFlow execution, running on a physical device is highly recommended for optimal performance.*
+*Note: Due to hardware-accelerated image analysis and local TensorFlow execution, running on a physical device in release mode is highly recommended for optimal performance.*
