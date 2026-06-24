@@ -6,8 +6,9 @@ import 'results_screen.dart';
 
 class ScanningScreen extends StatefulWidget {
   final List<AssetPathEntity>? selectedAlbums;
+  final bool isPdfScan;
 
-  const ScanningScreen({super.key, this.selectedAlbums});
+  const ScanningScreen({super.key, this.selectedAlbums, this.isPdfScan = false});
 
   @override
   State<ScanningScreen> createState() => _ScanningScreenState();
@@ -20,7 +21,11 @@ class _ScanningScreenState extends State<ScanningScreen> {
     // Start scanning gallery when the screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<ScanProvider>(context, listen: false);
-      provider.startScan(selectedAlbums: widget.selectedAlbums).then((_) {
+      final Future scanFuture = widget.isPdfScan
+          ? provider.startPdfScan()
+          : provider.startScan(selectedAlbums: widget.selectedAlbums);
+
+      scanFuture.then((_) {
         if (mounted && !provider.isCancelled) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -32,65 +37,95 @@ class _ScanningScreenState extends State<ScanningScreen> {
     });
   }
 
-  void _handleCancelPressed(ScanProvider scanProvider) {
-    if (scanProvider.notesCount > 0) {
-      showDialog(
-        context: context,
-        builder: (BuildContext dialogContext) {
-          final theme = Theme.of(context);
-          return AlertDialog(
-            title: Text(
-              'Cancel Scanning?',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
+
+  void _handlePausePressed(ScanProvider scanProvider) {
+    scanProvider.pauseScan();
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.pause_circle_filled_rounded,
+                color: theme.colorScheme.primary,
+                size: 28,
               ),
-            ),
-            content: Text(
-              'Notes Cleanser has already found ${scanProvider.notesCount} note photos. Would you like to review and delete them, or discard this scan?',
-              style: theme.textTheme.bodyMedium,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Close dialog
-                  scanProvider.cancelScan();
-                  Navigator.of(context).pop(); // Go back to Home
-                },
-                child: Text(
-                  'Discard',
-                  style: TextStyle(
-                    color: theme.colorScheme.error,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(); // Close dialog
-                  scanProvider.cancelScan(); // Stop scan loop
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) => const ResultsScreen(),
-                    ),
-                  );
-                },
-                child: Text(
-                  'Review Notes',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              const SizedBox(width: 10),
+              const Text('Scan Paused'),
             ],
-          );
-        },
-      );
-    } else {
-      scanProvider.cancelScan();
-      Navigator.of(context).pop();
-    }
+          ),
+          content: Text(
+            scanProvider.notesCount > 0
+                ? (widget.isPdfScan
+                    ? 'Notes Cleanser has found ${scanProvider.notesCount} note PDFs. What would you like to do?'
+                    : 'Notes Cleanser has found ${scanProvider.notesCount} note photos. What would you like to do?')
+                : 'What would you like to do with the current scan?',
+            style: theme.textTheme.bodyMedium,
+          ),
+          actionsAlignment: MainAxisAlignment.spaceBetween,
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                scanProvider.cancelScan();
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: theme.colorScheme.error,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (scanProvider.notesCount > 0)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      scanProvider.cancelScan();
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const ResultsScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Review',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    scanProvider.resumeScan();
+                  },
+                  child: Text(
+                    'Resume',
+                    style: TextStyle(
+                      color: theme.colorScheme.secondary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -103,10 +138,15 @@ class _ScanningScreenState extends State<ScanningScreen> {
     final scanned = scanProvider.scannedCount;
     final progress = total > 0 ? (scanned / total).clamp(0.0, 1.0) : 0.0;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+    return WillPopScope(
+      onWillPop: () async {
+        _handlePausePressed(scanProvider);
+        return false;
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -127,26 +167,32 @@ class _ScanningScreenState extends State<ScanningScreen> {
                       ),
                       // Inner Icon
                       Icon(
-                        Icons.photo_library_outlined,
+                        widget.isPdfScan
+                            ? Icons.picture_as_pdf_outlined
+                            : Icons.photo_library_outlined,
                         size: 44,
                         color: theme.colorScheme.onSurface,
                       ),
+
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 48),
               Text(
-                'Analyzing Gallery',
+                widget.isPdfScan ? 'Analyzing Documents' : 'Analyzing Gallery',
                 style: theme.textTheme.headlineMedium,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 12),
               Text(
-                'Notes Cleanser is scanning your photos on-device to detect handwritten notes, documents, and screenshots.',
+                widget.isPdfScan
+                    ? 'Notes Cleanser is scanning your documents on-device to detect PDF notes.'
+                    : 'Notes Cleanser is scanning your photos on-device to detect handwritten notes, documents, and screenshots.',
                 style: theme.textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
+
               const Spacer(),
               // Progress Numbers Card
               Card(
@@ -163,8 +209,10 @@ class _ScanningScreenState extends State<ScanningScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          Text(
-                            '$scanned of $total photos',
+                           Text(
+                            widget.isPdfScan
+                                ? '$scanned of $total documents'
+                                : '$scanned of $total photos',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: theme.colorScheme.onSurface,
@@ -206,8 +254,10 @@ class _ScanningScreenState extends State<ScanningScreen> {
                                   color: theme.colorScheme.onSurface,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  '${scanProvider.notesCount} note photos found',
+                                 Text(
+                                  widget.isPdfScan
+                                      ? '${scanProvider.notesCount} note PDFs found'
+                                      : '${scanProvider.notesCount} note photos found',
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: theme.colorScheme.onSurface,
@@ -223,9 +273,9 @@ class _ScanningScreenState extends State<ScanningScreen> {
                 ),
               ),
               const Spacer(),
-              // Cancel Button
+              // Pause Button
               OutlinedButton(
-                onPressed: () => _handleCancelPressed(scanProvider),
+                onPressed: () => _handlePausePressed(scanProvider),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: theme.colorScheme.onSurface,
                   side: BorderSide(color: theme.colorScheme.surfaceVariant, width: 1.5),
@@ -235,7 +285,7 @@ class _ScanningScreenState extends State<ScanningScreen> {
                   ),
                 ),
                 child: Text(
-                  'Cancel Scan',
+                  'Pause Scan',
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -245,7 +295,8 @@ class _ScanningScreenState extends State<ScanningScreen> {
           ),
         ),
       ),
-    );
+    ),
+   );
   }
 }
 

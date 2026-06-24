@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'scanning_screen.dart';
 import '../widgets/bouncy_tap.dart';
 
@@ -15,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _permissionDenied = false;
 
   Future<void> _handleScanPressed() async {
+
     // Request permission to access photos using photo_manager's built-in extension
     final PermissionState state = await PhotoManager.requestPermissionExtend();
 
@@ -49,7 +51,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleScanPdfPressed() async {
+    // Request manageExternalStorage for Android 11+, falling back to storage for older versions
+    PermissionStatus status = await Permission.manageExternalStorage.request();
+    if (status.isDenied || status.isPermanentlyDenied || status.isRestricted) {
+      status = await Permission.storage.request();
+    }
+
+    if (status.isGranted) {
+      setState(() {
+        _permissionDenied = false;
+      });
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const ScanningScreen(isPdfScan: true),
+          ),
+        );
+      }
+    } else {
+      setState(() {
+        _permissionDenied = true;
+      });
+    }
+  }
+
   void _openSettings() {
+
     PhotoManager.openSetting();
   }
 
@@ -164,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       const SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
-                                          'Gallery Access Required',
+                                          'Storage / Gallery Access Required',
                                           style: theme.textTheme.titleMedium?.copyWith(
                                             color: theme.colorScheme.error,
                                             fontWeight: FontWeight.bold,
@@ -176,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                   const SizedBox(height: 6),
                                   Text(
-                                    'To identify note photos, please enable access in settings.',
+                                    'To scan files and photos, please enable access in settings.',
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       color: theme.colorScheme.error,
                                       fontSize: 12,
@@ -233,11 +261,47 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          BouncyTap(
+                            onTap: _handleScanPdfPressed,
+                            child: ElevatedButton(
+                              onPressed: null,
+                              style: ElevatedButton.styleFrom(
+                                disabledBackgroundColor: theme.colorScheme.surfaceVariant,
+                                disabledForegroundColor: theme.colorScheme.onSurface,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: theme.colorScheme.primary.withOpacity(0.3),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.document_scanner_outlined, color: theme.colorScheme.onSurface),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Scan Documents (PDFs)',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      color: theme.colorScheme.onSurface,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
+
               ],
             ),
           ),
