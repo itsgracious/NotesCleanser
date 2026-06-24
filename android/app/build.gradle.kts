@@ -37,8 +37,9 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
             
-            // Apply proguard rules to prevent stripping of native/TFLite symbols
-            isMinifyEnabled = true
+            // Disable minification/R8 code stripping to prevent issues with native/TFLite symbols
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

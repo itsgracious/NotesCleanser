@@ -6,7 +6,11 @@ import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.initialize();
+  try {
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('Notification service failed to initialize: $e');
+  }
   runApp(const NotesCleanserApp());
 }
 
