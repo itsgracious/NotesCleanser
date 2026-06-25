@@ -192,6 +192,15 @@ class _ScanningScreenState extends State<ScanningScreen> {
                 style: theme.textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 12),
+              Text(
+                'Feel free to leave the app or check other things; scanning will continue securely in the background.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
 
               const Spacer(),
               // Progress Numbers Card
