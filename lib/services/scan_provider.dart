@@ -158,7 +158,7 @@ class ScanProvider extends ChangeNotifier {
       }
 
       // Show initial notification
-      await NotificationService.updateProgress(0, _totalCount);
+      await NotificationService.updateProgress(0, _totalCount, isPdf: true);
 
       int notificationUpdateCounter = 0;
 
@@ -240,7 +240,7 @@ class ScanProvider extends ChangeNotifier {
         notificationUpdateCounter++;
         if (notificationUpdateCounter >= 5) {
           notificationUpdateCounter = 0;
-          await NotificationService.updateProgress(_scannedCount, _totalCount);
+          await NotificationService.updateProgress(_scannedCount, _totalCount, isPdf: true);
         }
 
         // Give time for UI threads to execute smoothly
@@ -249,7 +249,7 @@ class ScanProvider extends ChangeNotifier {
 
       // Finish or stop service
       if (!_isCancelled) {
-        await NotificationService.updateProgress(_scannedCount, _totalCount, isComplete: true);
+        await NotificationService.updateProgress(_scannedCount, _totalCount, isComplete: true, isPdf: true);
       } else {
         await NotificationService.stopService();
       }

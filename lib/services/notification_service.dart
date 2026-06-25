@@ -42,7 +42,7 @@ class NotificationService {
   }
 
   /// Starts or updates the foreground service notification with scanning progress.
-  static Future<void> updateProgress(int progress, int max, {bool isComplete = false}) async {
+  static Future<void> updateProgress(int progress, int max, {bool isComplete = false, bool isPdf = false}) async {
     final androidPlugin = _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -52,8 +52,10 @@ class NotificationService {
       // Display a brief, complete message with all-named arguments
       await androidPlugin.startForegroundService(
         id: 888,
-        title: 'Scan Complete',
-        body: 'Gallery scan completed. Found all note photos.',
+        title: isPdf ? 'Document Scan Complete' : 'Scan Complete',
+        body: isPdf
+            ? 'Document scan completed. Found all note PDFs.'
+            : 'Gallery scan completed. Found all note photos.',
         notificationDetails: const AndroidNotificationDetails(
           _channelId,
           _channelName,
@@ -75,8 +77,10 @@ class NotificationService {
     // Otherwise, show active progress bar with all-named arguments
     await androidPlugin.startForegroundService(
       id: 888,
-      title: 'Scanning Gallery...',
-      body: '$progress / $max photos analyzed',
+      title: isPdf ? 'Scanning Documents...' : 'Scanning Gallery...',
+      body: isPdf
+          ? '$progress / $max documents analyzed'
+          : '$progress / $max photos analyzed',
       notificationDetails: AndroidNotificationDetails(
         _channelId,
         _channelName,
